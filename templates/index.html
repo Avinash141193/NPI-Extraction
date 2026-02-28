@@ -1,0 +1,726 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>NPI Registry Lookup</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,400&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --ink:     #0e0e10;
+      --paper:   #f5f2eb;
+      --cream:   #ede9df;
+      --rule:    #d4cfc4;
+      --steel:   #8c8880;
+      --teal:    #1a7a6e;
+      --teal-lt: #e6f4f2;
+      --red:     #c0392b;
+      --gold:    #b8860b;
+      --shadow:  rgba(14,14,16,.08);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--paper);
+      color: var(--ink);
+      font-family: 'DM Mono', monospace;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ── NOISE TEXTURE OVERLAY ── */
+    body::before {
+      content: '';
+      position: fixed; inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+      background-size: 200px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ── HEADER ── */
+    header {
+      position: relative;
+      border-bottom: 2px solid var(--ink);
+      padding: 0 48px;
+      display: flex;
+      align-items: stretch;
+      justify-content: space-between;
+      background: var(--ink);
+      overflow: hidden;
+    }
+
+    header::after {
+      content: '';
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      height: 3px;
+      background: repeating-linear-gradient(90deg, var(--teal) 0, var(--teal) 12px, transparent 12px, transparent 18px);
+    }
+
+    .header-left {
+      padding: 28px 0;
+      flex: 1;
+    }
+
+    .header-eyebrow {
+      font-family: 'DM Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 4px;
+      text-transform: uppercase;
+      color: var(--teal);
+      margin-bottom: 6px;
+    }
+
+    .header-title {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: clamp(44px, 6vw, 80px);
+      letter-spacing: 2px;
+      color: var(--paper);
+      line-height: .95;
+    }
+
+    .header-title span { color: var(--teal); }
+
+    .header-sub {
+      margin-top: 10px;
+      font-size: 11px;
+      color: var(--steel);
+      letter-spacing: 1px;
+    }
+
+    .header-badge {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      justify-content: center;
+      gap: 6px;
+      padding-left: 40px;
+    }
+
+    .badge-pill {
+      font-family: 'DM Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      padding: 5px 12px;
+      border-radius: 2px;
+      border: 1px solid;
+    }
+    .badge-pill.cms   { color: var(--teal); border-color: var(--teal); }
+    .badge-pill.live  { color: #4ade80; border-color: #4ade80; }
+
+    /* ── MAIN ── */
+    main {
+      position: relative;
+      z-index: 1;
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 52px 24px 100px;
+    }
+
+    /* ── SECTION LABELS ── */
+    .section-label {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    .section-num {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 13px;
+      letter-spacing: 3px;
+      color: var(--steel);
+    }
+    .section-title {
+      font-family: 'Instrument Serif', serif;
+      font-size: 22px;
+      font-style: italic;
+      color: var(--ink);
+    }
+    .section-line {
+      flex: 1;
+      height: 1px;
+      background: var(--rule);
+    }
+
+    /* ── PANELS ── */
+    .panel {
+      background: #fff;
+      border: 1px solid var(--rule);
+      border-radius: 4px;
+      padding: 32px;
+      margin-bottom: 40px;
+      box-shadow: 0 2px 12px var(--shadow);
+      animation: fadeUp .5s ease both;
+    }
+    .panel:nth-child(2) { animation-delay: .1s; }
+    .panel:nth-child(3) { animation-delay: .2s; }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(16px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ── SINGLE LOOKUP ── */
+    .single-form {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .npi-input-wrap {
+      flex: 1;
+      min-width: 220px;
+      position: relative;
+    }
+
+    .npi-input-wrap label {
+      position: absolute;
+      top: -10px; left: 12px;
+      font-size: 10px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--steel);
+      background: #fff;
+      padding: 0 4px;
+    }
+
+    input[type="text"] {
+      width: 100%;
+      border: 1.5px solid var(--rule);
+      border-radius: 3px;
+      padding: 14px 16px;
+      font-family: 'DM Mono', monospace;
+      font-size: 15px;
+      color: var(--ink);
+      background: var(--paper);
+      outline: none;
+      transition: border-color .2s;
+    }
+    input[type="text"]:focus { border-color: var(--teal); background: #fff; }
+    input[type="text"]::placeholder { color: var(--steel); }
+
+    .btn {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 17px;
+      letter-spacing: 2px;
+      border: none;
+      border-radius: 3px;
+      padding: 14px 32px;
+      cursor: pointer;
+      transition: all .2s;
+      white-space: nowrap;
+    }
+    .btn-primary {
+      background: var(--teal);
+      color: #fff;
+    }
+    .btn-primary:hover { background: #155f55; transform: translateY(-1px); }
+    .btn-primary:disabled { background: var(--rule); color: var(--steel); cursor: not-allowed; transform: none; }
+
+    .btn-download {
+      background: var(--ink);
+      color: var(--paper);
+      display: none;
+    }
+    .btn-download:hover { background: #2a2a2e; }
+
+    /* ── SINGLE RESULT CARD ── */
+    .result-grid {
+      display: none;
+      margin-top: 28px;
+      border-top: 1px solid var(--rule);
+      padding-top: 24px;
+    }
+
+    .result-header {
+      display: flex;
+      align-items: baseline;
+      gap: 16px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+
+    .result-name {
+      font-family: 'Instrument Serif', serif;
+      font-size: 26px;
+      font-style: italic;
+      color: var(--ink);
+    }
+
+    .result-npi-tag {
+      font-family: 'DM Mono', monospace;
+      font-size: 11px;
+      letter-spacing: 2px;
+      color: var(--teal);
+      border: 1px solid var(--teal);
+      padding: 3px 10px;
+      border-radius: 2px;
+    }
+
+    .status-tag {
+      font-size: 10px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      padding: 3px 10px;
+      border-radius: 2px;
+      font-family: 'DM Mono', monospace;
+    }
+    .status-active   { background: #e6f4f2; color: var(--teal); border: 1px solid var(--teal); }
+    .status-inactive { background: #fdf0ee; color: var(--red);  border: 1px solid var(--red); }
+
+    .fields-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 16px;
+    }
+
+    .field-item {
+      background: var(--paper);
+      border: 1px solid var(--rule);
+      border-radius: 3px;
+      padding: 14px 16px;
+    }
+    .field-item.full { grid-column: 1 / -1; }
+
+    .field-label {
+      font-size: 9px;
+      letter-spacing: 2.5px;
+      text-transform: uppercase;
+      color: var(--steel);
+      margin-bottom: 6px;
+    }
+
+    .field-value {
+      font-size: 13px;
+      color: var(--ink);
+      line-height: 1.6;
+      word-break: break-word;
+    }
+    .field-value.empty { color: var(--rule); font-style: italic; }
+
+    /* ── DROP ZONE ── */
+    .dropzone {
+      border: 2px dashed var(--rule);
+      border-radius: 4px;
+      padding: 52px 24px;
+      text-align: center;
+      cursor: pointer;
+      position: relative;
+      transition: all .25s;
+      background: var(--paper);
+    }
+    .dropzone:hover, .dropzone.drag-over {
+      border-color: var(--teal);
+      background: var(--teal-lt);
+    }
+    .dropzone input[type=file] {
+      position: absolute; inset: 0; opacity: 0; cursor: pointer;
+    }
+    .dz-icon { font-size: 38px; display: block; margin-bottom: 10px; }
+    .dz-title {
+      font-family: 'Instrument Serif', serif;
+      font-size: 20px;
+      font-style: italic;
+      color: var(--ink);
+      margin-bottom: 6px;
+    }
+    .dz-sub { font-size: 11px; color: var(--steel); letter-spacing: 1px; }
+
+    .file-pill {
+      display: none;
+      margin-top: 14px;
+      padding: 10px 16px;
+      background: var(--teal-lt);
+      border: 1px solid var(--teal);
+      border-radius: 3px;
+      font-size: 12px;
+      color: var(--teal);
+      letter-spacing: 1px;
+    }
+
+    /* ── PROGRESS ── */
+    .progress-wrap {
+      display: none;
+      margin-top: 24px;
+    }
+    .progress-meta {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      color: var(--steel);
+      margin-bottom: 8px;
+      letter-spacing: 1px;
+    }
+    .progress-track {
+      height: 4px;
+      background: var(--rule);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%;
+      width: 0%;
+      background: var(--teal);
+      border-radius: 2px;
+      transition: width .4s ease;
+    }
+
+    /* ── BATCH LOG TABLE ── */
+    .log-wrap {
+      display: none;
+      margin-top: 28px;
+      border-top: 1px solid var(--rule);
+      padding-top: 20px;
+    }
+    .log-scroll {
+      max-height: 300px;
+      overflow-y: auto;
+      border: 1px solid var(--rule);
+      border-radius: 3px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 11px;
+    }
+    thead th {
+      background: var(--ink);
+      color: var(--paper);
+      text-align: left;
+      padding: 10px 14px;
+      font-size: 9px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      position: sticky; top: 0;
+      font-weight: 400;
+    }
+    tbody tr { border-bottom: 1px solid var(--rule); }
+    tbody tr:last-child { border-bottom: none; }
+    tbody td { padding: 10px 14px; vertical-align: top; line-height: 1.5; }
+    td.ok   { color: var(--teal); }
+    td.err  { color: var(--red); }
+    td.pend { color: var(--gold); }
+    td.addr { color: var(--steel); max-width: 260px; }
+
+    .batch-controls {
+      display: flex;
+      gap: 12px;
+      margin-top: 20px;
+      flex-wrap: wrap;
+    }
+
+    .summary-bar {
+      display: none;
+      margin-top: 16px;
+      padding: 12px 16px;
+      background: var(--teal-lt);
+      border: 1px solid var(--teal);
+      border-radius: 3px;
+      font-size: 12px;
+      color: var(--teal);
+      letter-spacing: .5px;
+    }
+
+    /* ── LOADING SPINNER ── */
+    .spinner {
+      display: inline-block;
+      width: 14px; height: 14px;
+      border: 2px solid var(--rule);
+      border-top-color: var(--teal);
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+      vertical-align: middle;
+      margin-right: 6px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── FOOTER ── */
+    footer {
+      border-top: 1px solid var(--rule);
+      padding: 24px 48px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 10px;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: var(--steel);
+      position: relative; z-index: 1;
+    }
+
+    /* ── SCROLLBAR ── */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: var(--paper); }
+    ::-webkit-scrollbar-thumb { background: var(--rule); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--steel); }
+
+    @media (max-width: 600px) {
+      header { padding: 20px; }
+      main { padding: 32px 16px 60px; }
+      .panel { padding: 20px; }
+      footer { flex-direction: column; gap: 8px; text-align: center; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="header-left">
+    <div class="header-eyebrow">CMS · NPPES · National Provider Identifier</div>
+    <div class="header-title">NPI <span>Registry</span><br>Lookup</div>
+    <div class="header-sub">Fetch · Enrich · Export</div>
+  </div>
+  <div class="header-badge">
+    <div class="badge-pill cms">CMS Official API</div>
+    <div class="badge-pill live">● Live Data</div>
+  </div>
+</header>
+
+<main>
+
+  <!-- SINGLE LOOKUP -->
+  <div class="section-label">
+    <span class="section-num">01</span>
+    <span class="section-title">Single NPI Lookup</span>
+    <span class="section-line"></span>
+  </div>
+
+  <div class="panel">
+    <div class="single-form">
+      <div class="npi-input-wrap">
+        <label>NPI Number</label>
+        <input type="text" id="singleNpi" placeholder="e.g. 1144389941" maxlength="10">
+      </div>
+      <button class="btn btn-primary" id="singleBtn" onclick="doSingleLookup()">Search</button>
+    </div>
+
+    <div class="result-grid" id="singleResult">
+      <div class="result-header">
+        <div class="result-name" id="resName">—</div>
+        <div class="result-npi-tag" id="resNpi">NPI —</div>
+        <div class="status-tag" id="resStatus">—</div>
+      </div>
+      <div class="fields-grid" id="resFields"></div>
+    </div>
+  </div>
+
+  <!-- BATCH LOOKUP -->
+  <div class="section-label">
+    <span class="section-num">02</span>
+    <span class="section-title">Batch Lookup — Upload Excel</span>
+    <span class="section-line"></span>
+  </div>
+
+  <div class="panel">
+    <div class="dropzone" id="dropzone">
+      <input type="file" id="fileInput" accept=".xlsx,.xls,.csv">
+      <span class="dz-icon">📋</span>
+      <div class="dz-title">Drop your NPI List Excel file here</div>
+      <div class="dz-sub">or click to browse &nbsp;·&nbsp; .xlsx / .xls / .csv &nbsp;·&nbsp; Column A = NPI numbers from row 2</div>
+    </div>
+    <div class="file-pill" id="filePill"></div>
+
+    <div class="batch-controls">
+      <button class="btn btn-primary" id="runBtn" disabled onclick="doBatchLookup()">▶ &nbsp;Run Full Lookup</button>
+      <button class="btn btn-download" id="downloadBtn">⬇ &nbsp;Download Result</button>
+    </div>
+
+    <div class="progress-wrap" id="progressWrap">
+      <div class="progress-meta">
+        <span id="progText">Initializing…</span>
+        <span id="progCount">0 / 0</span>
+      </div>
+      <div class="progress-track"><div class="progress-fill" id="progFill"></div></div>
+    </div>
+
+    <div class="summary-bar" id="summaryBar"></div>
+
+    <div class="log-wrap" id="logWrap">
+      <div class="log-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Row</th><th>NPI</th><th>Provider Name</th><th>Primary Address</th><th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="logBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<footer>
+  <span>NPI Registry Lookup Tool</span>
+  <span>Powered by CMS NPPES Public API · v2.1</span>
+</footer>
+
+<script>
+  // ── SINGLE LOOKUP ──
+  async function doSingleLookup() {
+    const npi = document.getElementById('singleNpi').value.trim();
+    if (!npi) return;
+    const btn = document.getElementById('singleBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span>Searching…';
+
+    try {
+      const res = await fetch('/lookup-single', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ npi })
+      });
+      const data = await res.json();
+
+      if (data.error && !data.npi) {
+        alert('Error: ' + (data.error || 'NPI not found'));
+        return;
+      }
+
+      // Populate result card
+      document.getElementById('resName').textContent = data.provider_name || 'Unknown Provider';
+      document.getElementById('resNpi').textContent  = 'NPI ' + (data.npi || npi);
+
+      const statusEl = document.getElementById('resStatus');
+      statusEl.textContent = data.status || '—';
+      statusEl.className   = 'status-tag ' + (data.status === 'A' || data.status === 'Active' ? 'status-active' : 'status-inactive');
+
+      const fields = [
+        { label: 'NPI',                         value: data.npi },
+        { label: 'Enumeration Date',             value: data.enumeration_date },
+        { label: 'NPI Type',                     value: data.npi_type },
+        { label: 'Status',                       value: data.status },
+        { label: 'Authorized Official',          value: data.authorized_official,          full: true },
+        { label: 'Mailing Address',              value: data.mailing_address,              full: true },
+        { label: 'Primary Practice Address',     value: data.primary_practice_address,     full: true },
+        { label: 'Secondary Practice Address',   value: data.secondary_practice_addresses, full: true },
+        { label: 'Health Information Exchange',  value: data.health_information_exchange,  full: true },
+        { label: 'Other Identifiers',            value: data.other_identifiers,            full: true },
+        { label: 'Taxonomy',                     value: data.taxonomy,                     full: true },
+      ];
+
+      const grid = document.getElementById('resFields');
+      grid.innerHTML = '';
+      fields.forEach(f => {
+        const div = document.createElement('div');
+        div.className = 'field-item' + (f.full ? ' full' : '');
+        div.innerHTML = `<div class="field-label">${f.label}</div>
+                         <div class="field-value ${f.value ? '' : 'empty'}">${f.value || 'Not available'}</div>`;
+        grid.appendChild(div);
+      });
+
+      document.getElementById('singleResult').style.display = 'block';
+
+    } catch(e) {
+      alert('Request failed: ' + e.message);
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = 'Search';
+    }
+  }
+
+  document.getElementById('singleNpi').addEventListener('keydown', e => {
+    if (e.key === 'Enter') doSingleLookup();
+  });
+
+  // ── FILE UPLOAD ──
+  let uploadedFile = null;
+  let resultBlob   = null;
+
+  const dropzone  = document.getElementById('dropzone');
+  const fileInput = document.getElementById('fileInput');
+  const filePill  = document.getElementById('filePill');
+  const runBtn    = document.getElementById('runBtn');
+
+  dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('drag-over'); });
+  dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag-over'));
+  dropzone.addEventListener('drop', e => { e.preventDefault(); dropzone.classList.remove('drag-over'); handleFile(e.dataTransfer.files[0]); });
+  fileInput.addEventListener('change', () => handleFile(fileInput.files[0]));
+
+  function handleFile(file) {
+    if (!file) return;
+    uploadedFile = file;
+    filePill.style.display = 'block';
+    filePill.textContent   = '✓  ' + file.name;
+    runBtn.disabled        = false;
+    document.getElementById('downloadBtn').style.display = 'none';
+    document.getElementById('logBody').innerHTML = '';
+    document.getElementById('logWrap').style.display = 'none';
+    document.getElementById('summaryBar').style.display = 'none';
+  }
+
+  // ── BATCH LOOKUP ──
+  async function doBatchLookup() {
+    if (!uploadedFile) return;
+
+    const formData = new FormData();
+    formData.append('file', uploadedFile);
+
+    runBtn.disabled = true;
+    runBtn.innerHTML = '<span class="spinner"></span>Processing…';
+    document.getElementById('progressWrap').style.display = 'block';
+    document.getElementById('progText').textContent  = 'Uploading and processing…';
+    document.getElementById('progCount').textContent = '';
+    document.getElementById('progFill').style.width  = '10%';
+    document.getElementById('logWrap').style.display = 'none';
+    document.getElementById('summaryBar').style.display = 'none';
+    document.getElementById('downloadBtn').style.display = 'none';
+
+    try {
+      // Animate progress bar while waiting (server does the work)
+      let fakeProgress = 10;
+      const ticker = setInterval(() => {
+        fakeProgress = Math.min(fakeProgress + Math.random() * 4, 88);
+        document.getElementById('progFill').style.width = fakeProgress + '%';
+        document.getElementById('progText').textContent = 'Looking up providers…';
+      }, 600);
+
+      const res = await fetch('/lookup-batch', {
+        method: 'POST',
+        body: formData
+      });
+
+      clearInterval(ticker);
+
+      if (!res.ok) {
+        const err = await res.json();
+        alert('Error: ' + err.error);
+        return;
+      }
+
+      // Complete progress
+      document.getElementById('progFill').style.width = '100%';
+      document.getElementById('progText').textContent = 'Complete!';
+
+      resultBlob = await res.blob();
+
+      // Show download button
+      const dlBtn = document.getElementById('downloadBtn');
+      dlBtn.style.display = 'block';
+      dlBtn.onclick = () => {
+        const url = URL.createObjectURL(resultBlob);
+        const a = document.createElement('a');
+        a.href = url; a.download = 'NPI_List_Full_Data.xlsx';
+        a.click(); URL.revokeObjectURL(url);
+      };
+
+      document.getElementById('summaryBar').style.display = 'block';
+      document.getElementById('summaryBar').textContent   = '✓  Lookup complete — click Download Result to save your enriched Excel file.';
+
+    } catch(e) {
+      alert('Request failed: ' + e.message);
+    } finally {
+      runBtn.disabled = false;
+      runBtn.innerHTML = '▶ &nbsp;Run Full Lookup';
+    }
+  }
+</script>
+</body>
+</html>
